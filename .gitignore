@@ -2,3 +2,14 @@
 
 # PyCharm
 .idea/
+
+*.pyc
+*.o
+
+__pycache__/
+models/ops/build/
+models/ops/dist/
+models/ops/MultiScaleDeformableAttention.egg-info
+
+outputs/
+videos/

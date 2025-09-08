@@ -9,6 +9,8 @@ import os
 import sys
 import torch
 import cv2
+import ffmpeg
+import numpy as np
 from utils.nested_tensor import nested_tensor_from_tensor_list
 from tqdm import tqdm
 from demo.colormap import get_color
@@ -78,19 +80,66 @@ def simple_transform(image, max_shorter, max_longer, image_dtype):
 
 
 def process_video(video_path, output_path, model, dtype):
-    """Process the video with MOTIP tracking."""
+    """Process the video with MOTIP tracking using GPU-accelerated decoding."""
     from models.runtime_tracker import RuntimeTracker
     
-    video_cap = cv2.VideoCapture(video_path)
-    if not video_cap.isOpened():
-        raise RuntimeError(f"Failed to open video file: {video_path}")
+    # 获取视频信息
+    probe = ffmpeg.probe(video_path)
+    video_info = next(s for s in probe['streams'] if s['codec_type'] == 'video')
+    codec = video_info['codec_name']
+    width, height = int(video_info['width']), int(video_info['height'])
+    fps = float(video_info['r_frame_rate'].split('/')[0]) / float(video_info['r_frame_rate'].split('/')[1])
+    length = int(video_info['nb_frames']) if 'nb_frames' in video_info else None
     
-    # Get video properties
-    fps = video_cap.get(cv2.CAP_PROP_FPS)
-    width = int(video_cap.get(cv2.CAP_PROP_FRAME_WIDTH))
-    height = int(video_cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
-    length = int(video_cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    print(f"The video {video_path} seems OK. It has {fps} fps, {width} width and {height} height.")
+    print(f"输入视频: {width}x{height}, 编解码器: {codec}, FPS: {fps:.2f}")
+    
+    # 尝试GPU解码器，如果失败则回退到CPU
+    codec_map = {'h264': 'h264_cuvid', 'hevc': 'hevc_cuvid', 'av1': 'av1_cuvid'}
+    hw_decoder = codec_map.get(codec, 'h264_cuvid')
+    
+    process = None
+    use_gpu = True
+    
+    try:
+        # 尝试GPU加速解码
+        print(f"尝试使用GPU解码器: {hw_decoder}")
+        process = (
+            ffmpeg.input(video_path, vcodec=hw_decoder)
+            .output('pipe:', format='rawvideo', pix_fmt='rgb24')
+            .run_async(pipe_stdout=True, pipe_stderr=True, quiet=True)
+        )
+        # 测试读取第一帧
+        test_read = process.stdout.read(width * height * 3)
+        if len(test_read) != width * height * 3:
+            raise Exception("GPU解码器测试失败")
+        # 重置进程，重新开始
+        process.terminate()
+        process.wait()
+    except Exception as e:
+        print(f"GPU解码器不可用({e})，回退到CPU解码")
+        use_gpu = False
+        if process:
+            try:
+                process.terminate()
+                process.wait()
+            except:
+                pass
+    
+    # 根据是否支持GPU选择解码方式
+    if use_gpu:
+        print("使用GPU加速解码")
+        process = (
+            ffmpeg.input(video_path, vcodec=hw_decoder)
+            .output('pipe:', format='rawvideo', pix_fmt='rgb24')
+            .run_async(pipe_stdout=True, quiet=True)
+        )
+    else:
+        print("使用CPU解码")
+        process = (
+            ffmpeg.input(video_path)
+            .output('pipe:', format='rawvideo', pix_fmt='rgb24')
+            .run_async(pipe_stdout=True, quiet=True)
+        )
     
     fourcc = cv2.VideoWriter_fourcc(*"mp4v")
     video_writer = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
@@ -106,32 +155,58 @@ def process_video(video_path, output_path, model, dtype):
         dtype=dtype,
     )
 
-    for frame_idx in tqdm(range(length), desc="Processing video", unit="frame"):
-        ret, frame = video_cap.read()
-        if not ret:
-            break
+    frame_size = width * height * 3  # RGB24格式
+    frame_idx = 0
+    
+    try:
+        # 使用tqdm显示进度
+        pbar = tqdm(desc="Processing video", unit="frame", total=length)
+        
+        while True:
+            # 从ffmpeg管道读取原始RGB数据
+            raw_frame = process.stdout.read(frame_size)
+            if not raw_frame:
+                print("视频流结束")
+                break
+            if len(raw_frame) != frame_size:
+                print(f"帧大小不匹配: 期望{frame_size}, 实际{len(raw_frame)}")
+                break
+            
+            # 转换为numpy数组并重塑为图像
+            frame = np.frombuffer(raw_frame, dtype=np.uint8).reshape(height, width, 3)
+            # 转换RGB到BGR供OpenCV使用
+            frame_bgr = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
 
-        # Convert the frame to a tensor
-        frame_tensor = simple_transform(frame, max_shorter=800, max_longer=1440, image_dtype=dtype)
-        frame_tensor = nested_tensor_from_tensor_list([frame_tensor])
+            # 转换帧为张量
+            frame_tensor = simple_transform(frame_bgr, max_shorter=800, max_longer=1440, image_dtype=dtype)
+            frame_tensor = nested_tensor_from_tensor_list([frame_tensor])
 
-        # Run the tracker on the frame
-        runtime_tracker.update(frame_tensor)
+            # 运行跟踪器
+            runtime_tracker.update(frame_tensor)
 
-        with torch.no_grad():
-            track_results = runtime_tracker.get_track_results()
+            with torch.no_grad():
+                track_results = runtime_tracker.get_track_results()
 
-        for bbox, obj_id in zip(track_results["bbox"], track_results["id"]):
-            x, y, w, h = map(int, bbox)
-            cv2.rectangle(frame, (x, y), (x + w, y + h), get_color(obj_id, rgb=False, use_int=True), 2)
-            cv2.putText(frame, f"ID: {obj_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, get_color(obj_id, rgb=False, use_int=True), 2)
+            # 绘制跟踪结果
+            for bbox, obj_id in zip(track_results["bbox"], track_results["id"]):
+                x, y, w, h = map(int, bbox)
+                cv2.rectangle(frame_bgr, (x, y), (x + w, y + h), get_color(obj_id, rgb=False, use_int=True), 2)
+                cv2.putText(frame_bgr, f"ID: {obj_id}", (x, y - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, get_color(obj_id, rgb=False, use_int=True), 2)
 
-        video_writer.write(frame)
+            video_writer.write(frame_bgr)
+            frame_idx += 1
+            pbar.update(1)
+            
+    except Exception as e:
+        print(f"处理视频时出错: {e}")
+    finally:
+        if process:
+            process.stdout.close()
+            process.wait()
+        video_writer.release()
+        pbar.close()
 
-    video_cap.release()
-    video_writer.release()
-
-    print(f"Video processing completed. The output video is saved to {output_path}.")
+    print(f"视频处理完成。输出视频已保存到 {output_path}。")
 
 
 def main():

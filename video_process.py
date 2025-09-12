@@ -13,7 +13,7 @@ import ffmpeg
 import numpy as np
 from utils.nested_tensor import nested_tensor_from_tensor_list
 from tqdm import tqdm
-from demo.colormap import get_color
+from colormap import get_color
 
 
 def setup_environment():

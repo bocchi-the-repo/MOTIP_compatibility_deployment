@@ -14,7 +14,7 @@ import math
 import torch
 from torch import nn
 
-from utils.nested_tensor import NestedTensor
+from motip.utils.nested_tensor import NestedTensor
 
 
 class PositionEmbeddingSine(nn.Module):

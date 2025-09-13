@@ -1,10 +1,10 @@
 # Copyright (c) Ruopeng Gao. All Rights Reserved.
 
 from .motip import MOTIP
-from structures.args import Args
-from models.deformable_detr.deformable_detr import build as build_deformable_detr
-from models.motip.trajectory_modeling import TrajectoryModeling
-from models.motip.id_decoder import IDDecoder
+from motip.structures.args import Args
+from motip.models.deformable_detr.deformable_detr import build as build_deformable_detr
+from motip.models.motip.trajectory_modeling import TrajectoryModeling
+from motip.models.motip.id_decoder import IDDecoder
 
 
 def build(config: dict):

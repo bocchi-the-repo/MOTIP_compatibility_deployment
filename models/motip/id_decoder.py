@@ -6,8 +6,8 @@ import torch.nn as nn
 from typing import Tuple
 from torch.utils.checkpoint import checkpoint
 
-from models.misc import _get_clones, label_to_one_hot
-from models.ffn import FFN
+from motip.models.misc import _get_clones, label_to_one_hot
+from motip.models.ffn import FFN
 
 
 class IDDecoder(nn.Module):

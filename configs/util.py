@@ -1,7 +1,7 @@
 # Copyright (c) Ruopeng Gao. All Rights Reserved.
 
 import argparse
-from utils.misc import yaml_to_dict
+from motip.utils.misc import yaml_to_dict
 
 
 def update_config_with_kv(config: dict, k: str, v) -> [bool, dict]:

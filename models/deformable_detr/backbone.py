@@ -19,10 +19,10 @@ from torchvision.models._utils import IntermediateLayerGetter
 from torchvision.models import ResNet50_Weights
 from typing import Dict, List
 
-from utils.nested_tensor import NestedTensor
-from utils.misc import is_main_process
+from motip.utils.nested_tensor import NestedTensor
+from motip.utils.misc import is_main_process
 
-from models.deformable_detr.position_encoding import build_position_encoding
+from motip.models.deformable_detr.position_encoding import build_position_encoding
 
 
 class FrozenBatchNorm2d(torch.nn.Module):

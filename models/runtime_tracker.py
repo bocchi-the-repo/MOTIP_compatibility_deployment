@@ -4,11 +4,11 @@ import torch
 import einops
 from scipy.optimize import linear_sum_assignment
 
-from structures.instances import Instances
-from structures.ordered_set import OrderedSet
-from utils.misc import distributed_device
-from utils.box_ops import box_cxcywh_to_xywh
-from models.misc import get_model
+from motip.structures.instances import Instances
+from motip.structures.ordered_set import OrderedSet
+from motip.utils.misc import distributed_device
+from motip.utils.box_ops import box_cxcywh_to_xywh
+from motip.models.misc import get_model
 
 
 class RuntimeTracker:

@@ -2,7 +2,7 @@
 
 import torch.nn as nn
 
-from models.ffn import FFN
+from motip.models.ffn import FFN
 
 
 class TrajectoryModeling(nn.Module):

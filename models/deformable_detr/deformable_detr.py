@@ -16,15 +16,15 @@ import torch.nn.functional as F
 from torch import nn
 import math
 
-from utils import box_ops
-from utils.nested_tensor import NestedTensor, nested_tensor_from_tensor_list
-from models.misc import inverse_sigmoid, accuracy, interpolate
-from utils.misc import is_distributed, distributed_world_size
+from motip.utils import box_ops
+from motip.utils.nested_tensor import NestedTensor, nested_tensor_from_tensor_list
+from motip.models.misc import inverse_sigmoid, accuracy, interpolate
+from motip.utils.misc import is_distributed, distributed_world_size
 # from util.misc import (NestedTensor, nested_tensor_from_tensor_list,
 #                        accuracy, get_world_size, interpolate,
 #                        is_dist_avail_and_initialized, inverse_sigmoid)
 
-from models.deformable_detr.backbone import build_backbone
+from motip.models.deformable_detr.backbone import build_backbone
 from .matcher import build_matcher
 from .segmentation import (DETRsegm, PostProcessPanoptic, PostProcessSegm,
                            dice_loss, sigmoid_focal_loss)

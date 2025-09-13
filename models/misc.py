@@ -6,7 +6,7 @@ import copy
 import math
 import torch.nn as nn
 
-from utils.misc import is_main_process, is_distributed
+from motip.utils.misc import is_main_process, is_distributed
 
 
 # Several calculation functions that are used in multiple model structures:

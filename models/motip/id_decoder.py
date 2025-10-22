@@ -52,7 +52,7 @@ class IDDecoder(nn.Module):
         )
         # Prepare others for rel pe:
         t_idxs = torch.arange(self.rel_pe_length, dtype=torch.int64)
-        curr_t_idxs, traj_t_idxs = torch.meshgrid([t_idxs, t_idxs])
+        curr_t_idxs, traj_t_idxs = torch.meshgrid(t_idxs, t_idxs, indexing='ij')
         self.rel_pos_map = (curr_t_idxs - traj_t_idxs)      # [curr_t_idx, traj_t_idx] -> rel_pos, like [1, 0] = 1
         pass
 
@@ -122,7 +122,12 @@ class IDDecoder(nn.Module):
         self.rel_pos_map = self.rel_pos_map.to(trajectory_features.device)
         rel_pe_idx_pairs = torch.stack([
             torch.stack(
-                torch.meshgrid([_unknown_times_flatten[_], _trajectory_times_flatten[_]]), dim=-1
+                torch.meshgrid(
+                    _unknown_times_flatten[_],
+                    _trajectory_times_flatten[_],
+                    indexing='ij',
+                ),
+                dim=-1,
             )
             for _ in range(len(_trajectory_times_flatten))
         ], dim=0)       # (B*G, T*N of curr, T*N of traj, 2)

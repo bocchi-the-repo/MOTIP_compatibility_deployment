@@ -1,7 +1,12 @@
 # Copyright (c) Ruopeng Gao. All Rights Reserved.
 
 import argparse
+from pathlib import Path
+
 from motip.utils.misc import yaml_to_dict
+
+
+PROJECT_ROOT = Path(__file__).resolve().parents[2]
 
 
 def update_config_with_kv(config: dict, k: str, v) -> [bool, dict]:
@@ -93,11 +98,37 @@ def is_unique(config: dict, keys_set: set = None) -> [bool, set]:
     return True, keys_set
 
 
-def load_super_config(config: dict, super_config_path: str | None):
+def resolve_config_path(path: str | Path, base_dir: str | Path | None = None) -> Path:
+    path = Path(path).expanduser()
+    if path.is_absolute():
+        return path
+
+    candidates = []
+    if base_dir is not None:
+        candidates.append(Path(base_dir) / path)
+    candidates.append(PROJECT_ROOT / path)
+    candidates.append(Path.cwd() / path)
+
+    for candidate in candidates:
+        if candidate.exists():
+            return candidate.resolve()
+    return (PROJECT_ROOT / path).resolve()
+
+
+def load_super_config(
+    config: dict,
+    super_config_path: str | Path | None,
+    base_dir: str | Path | None = None,
+):
     if super_config_path is None:
         return config
     else:
-        super_config = yaml_to_dict(super_config_path)
-        super_config = load_super_config(super_config, super_config["SUPER_CONFIG_PATH"])
+        super_config_path = resolve_config_path(super_config_path, base_dir=base_dir)
+        super_config = yaml_to_dict(str(super_config_path))
+        super_config = load_super_config(
+            super_config,
+            super_config["SUPER_CONFIG_PATH"],
+            base_dir=super_config_path.parent,
+        )
         super_config.update(config)
         return super_config
